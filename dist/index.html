@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#263e34"><meta name="description" content="Start a new chapter in Kora Bay, a fictional coastal city. Explore the neighbourhood, find work, and build a life at your own pace.">
+  <title>Kora Bay — A New Chapter</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="phone.css"><link rel="stylesheet" href="scenes.css">
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="./" aria-label="Kora Bay home"><span class="brand-mark">k<span>◡</span></span><span>KORA BAY<small>A LIFE OF YOUR OWN</small></span></a>
+  <div class="chapter">YOUR FIRST CHAPTER <span>01</span></div>
+  <h1>Big city.<br>Small beginnings.</h1><p class="intro">A little hustle. A little sunshine.<br>A story only you can write.</p>
+  <nav aria-label="Game views"><button class="nav active" id="exploreBtn"><span>⌘</span> Explore the city <i>↗</i></button><button class="nav" id="phoneBtn" aria-label="Open player phone"><span>▯</span> My phone <small id="phoneBadge"></small></button><button class="nav" id="apartmentBtn"><span>⌂</span> My apartment</button><button class="nav" id="journalBtn"><span>▤</span> My journal <span class="dot"></span></button><button class="nav" id="helpBtn"><span>◉</span> How to play</button></nav>
+  <div class="sidebar-bottom"><div class="weather"><span>☀</span><div>Always a possibility<small>27° · A little coastal breeze</small></div></div><div class="save-state"><span></span> <span id="saveLabel">Your story saves automatically</span></div><button class="text-button" id="resetBtn">Start a new story ↗</button></div>
+</aside>
+<main>
+  <header class="topbar"><div class="breadcrumb">Your world <span>/</span> <strong>Kora Bay</strong></div><div class="time"><span id="sunIcon">☀</span><span id="clock">Monday, 8:00 AM</span><span class="day-badge" id="dayLabel">DAY 01</span></div><button class="profile" id="profileBtn" aria-label="Edit character name"><span>✦</span><b id="profileName">New neighbour</b><span class="profile-arrow">⌄</span></button></header>
+  <div class="workspace">
+    <section class="city-section">
+      <div class="page-heading"><div><p class="eyebrow">MAKE YOURSELF AT HOME</p><h2>The city is yours.</h2><p>Pick a place. See where the day takes you.</p></div><span class="live-pill"><i></i> CITY EXPLORER</span></div>
+      <section class="map-card" aria-label="Interactive Kora Bay city map">
+        <div class="map-top"><span><i></i> <b id="districtLabel">Old Town</b><small>KORA BAY · WEST COAST</small></span><button id="mapHelp" class="round-button" aria-label="Map instructions">?</button></div>
+        <canvas id="city" tabindex="0" aria-label="City map. Click a building to visit or a walking neighbour to talk. Places and people are also available as buttons below."></canvas>
+        <div class="map-caption"><span><i class="player-dot"></i> YOU ARE HERE <strong id="currentLocation">Palm House</strong></span><span class="map-hint">Click a building or a neighbour</span></div>
+        <button class="transport-badge" id="transportBadge" aria-label="Open Bay Rides vehicle garage">↗ <span id="transportStatus">On foot · 15 min per trip</span></button>
+        <div class="map-controls"><button id="zoomOut" aria-label="Zoom out">−</button><button id="zoomReset" aria-label="Reset map zoom">⌖</button><button id="zoomIn" aria-label="Zoom in">+</button></div>
+      </section>
+      <div class="places-heading"><h3>Around the neighbourhood <span>6 places to discover</span></h3><span>GO SOMEWHERE GOOD ↘</span></div>
+      <div class="places" id="places"></div>
+      <div class="places-heading"><h3>Your neighbours <span>Tap a person on the map or meet them here</span></h3><span>FAMILIAR FACES ↘</span></div>
+      <div class="residents" id="residents" aria-label="Meet the neighbours"></div>
+      <div class="city-note"><span>✦</span><p>You don't have to have it all figured out.<br><b>Every good story starts somewhere.</b></p><span>KORA BAY<br>EST. YOUR FIRST DAY</span></div>
+    </section>
+    <aside class="life-panel" aria-label="Your life and location actions">
+      <section class="wallet"><div class="wallet-top"><span>YOUR POCKET</span><span>◈</span></div><h2 id="money">₭1,800</h2><p>A little room to dream.</p><div class="rent"><span>⌂ <span id="housingLabel">Shared room</span></span><b id="rentLabel">₭900 / week</b></div></section>
+      <section class="needs"><div class="section-label">A LITTLE CHECK-IN <span>♡</span></div><div id="needs"></div></section>
+      <section class="location-panel" id="locationPanel"></section>
+      <section class="goal"><span class="goal-icon">↗</span><div><p>THE NEXT LITTLE BIG THING</p><h3>A place of your own</h3><p id="goalText">Save ₭5,000 to move into a studio.</p><div class="progress"><span id="goalProgress"></span></div><div class="goal-footer"><span id="goalAmount">₭1,800 saved</span><b id="goalPercent">36%</b></div></div></section>
+      <p class="panel-footnote">Fictional city. Real main-character energy.</p>
+    </aside>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<dialog id="dialog"><div class="dialog-top"><span class="eyebrow" id="dialogEyebrow">YOUR STORY</span><button id="closeDialog" class="round-button" aria-label="Close dialog">×</button></div><div id="dialogContent"></div></dialog>
+<dialog id="activityDialog" aria-label="Play inside the city"><div class="activity-shell"><header class="scene-header"><div><p class="eyebrow" id="sceneKicker">A LITTLE LIFE, UP CLOSE</p><h2 id="sceneTitle">Welcome home.</h2></div><div class="scene-header-actions"><button id="sceneDecorate">Arrange furniture</button><button id="scenePhone">My phone</button><button id="sceneExit">Back to city ↗</button></div></header><div class="scene-layout"><section class="scene-stage"><canvas id="activityCanvas" tabindex="0" aria-label="Activity scene. Click the floor to move or an object to use it. Arrow keys or W A S D move, E interacts, and Space stands up."></canvas><div class="scene-place-label"><b id="scenePlace">Palm House</b><small>YOUR WORLD · A LITTLE CLOSER</small></div><div id="sceneCaption" class="scene-caption">Click the floor to walk. Click a piece of furniture to use it.</div><div class="scene-zoom"><button id="sceneZoomOut" aria-label="Zoom activity scene out">−</button><button id="sceneZoomIn" aria-label="Zoom activity scene in">+</button></div></section><aside class="scene-panel"><div id="sceneNeeds" class="scene-needs"></div><section class="scene-progress-card"><small>YOUR LITTLE MOMENT</small><h3 id="sceneActivityTitle">Make yourself at home.</h3><p id="sceneActivityStatus" role="status" aria-live="polite">Take a seat. Try something new.</p><div class="progress"><span id="sceneActivityProgress" style="width:0%"></span></div><div class="scene-progress-buttons"><button id="sceneFinish" disabled>Skip animation</button><button id="sceneStop">Stand up / stop</button></div></section><div class="section-label">WHAT FEELS GOOD TODAY?</div><div id="sceneActions" class="scene-activities"></div><p class="scene-tally" id="sceneTally"></p></aside></div><footer class="scene-controls"><p><strong>Click to move · E to interact · Space to stand up</strong><br>Arrows / WASD, or use the buttons to explore.</p><div class="scene-touch"><button data-scene-move="left" aria-label="Move left">←</button><button data-scene-move="up" aria-label="Move up">↑</button><button data-scene-move="down" aria-label="Move down">↓</button><button data-scene-move="right" aria-label="Move right">→</button><button id="sceneInteract">Use nearby</button></div></footer></div></dialog>
+<button id="callChip" class="call-chip" hidden>☎ <span>Open call</span></button>
+<dialog id="phoneDialog" aria-label="Bayline player phone"><div class="phone-shell"><div class="phone-statusbar"><span id="phoneTime">9:41</span><span class="phone-notch"></span><span>▥ ▰</span></div><header class="phone-header"><div><span class="phone-wordmark">bayline<span>✳</span></span><small id="phoneNetwork">YOUR KORA BAY CONNECTION</small></div><button id="closePhone" aria-label="Put phone away">×</button></header><div id="phoneAlert" role="status" aria-live="polite"></div><div id="phoneBody"></div><footer class="phone-footer"><button id="phoneHomeTab">⌂<span>Home</span></button><button id="phoneContactsTab">♧<span>Contacts</span></button><button id="phoneCallsTab">☎<span>Calls</span></button><button id="phoneSettingsTab">⚙<span>Settings</span></button></footer></div></dialog>
+<audio id="callAudio" autoplay playsinline></audio>
+<script src="game.js"></script><script src="vehicles.js"></script><script src="life.js"></script><script src="activities.js"></script><script src="city.js"></script><script src="scene-art.js"></script><script src="scenes.js"></script><script src="phone-apps.js"></script><script src="phone.js"></script>
+</body></html>

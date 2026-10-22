@@ -1,0 +1,31 @@
+'use strict';
+const ACTIVITIES={
+ sit:{name:'Sit & unwind',pose:'sit',icon:'⌑',minutes:20,energy:10,hunger:-2,mood:10,types:['home','beach','cafe','library','market'],description:'Sit down. Let the city wait a little.'},
+ sleep:{name:'A good night’s sleep',pose:'sleep',icon:'☾',minutes:480,energy:90,hunger:-28,mood:15,legacy:true,types:['home'],description:'Stretch out on your bed and recharge.'},
+ nap:{name:'Take a nap',pose:'sleep',icon:'☾',minutes:120,energy:38,hunger:-10,mood:6,legacy:true,types:['home'],description:'A softer pace for a couple of hours.'},
+ cook:{name:'Cook a proper meal',pose:'cook',icon:'♨',minutes:40,energy:4,hunger:38,mood:8,cost:60,types:['home'],description:'Something warm, made by you.'},
+ snack:{name:'Bread & tea',pose:'eat',icon:'☕',minutes:20,energy:0,hunger:22,mood:0,legacy:true,types:['home'],description:'Your home pantry is always here for you.'},
+ shower:{name:'Take a shower',pose:'shower',icon:'♧',minutes:15,energy:8,hunger:-2,mood:16,types:['home'],description:'Wash the day away and start fresh.'},
+ read:{name:'Read a little',pose:'read',icon:'▤',minutes:45,energy:6,hunger:-4,mood:14,types:['home','cafe','library'],description:'Get comfortable with a good book.'},
+ tidy:{name:'Tidy your place',pose:'tidy',icon:'✧',minutes:25,energy:-8,hunger:-4,mood:14,types:['home'],description:'Sweep a little space for a clearer mind.'},
+ dance:{name:'Dance it out',pose:'dance',icon:'♫',minutes:20,energy:-8,hunger:-5,mood:22,types:['home'],description:'Nobody’s judging. Find your rhythm.'},
+ swim:{name:'Go swimming',pose:'swim',icon:'≈',minutes:45,energy:-14,hunger:-9,mood:26,minEnergy:15,minHunger:10,types:['beach'],description:'Take a dip and swim a few gentle laps.'},
+ fish:{name:'Go fishing',pose:'fish',icon:'⌁',minutes:60,energy:-5,hunger:-5,mood:18,types:['beach'],description:'Cast a line. Watch the little things.'},
+ sunbathe:{name:'Relax on a lounger',pose:'sunbathe',icon:'☀',minutes:40,energy:12,hunger:-4,mood:18,types:['beach'],description:'A little sunshine, a little daydreaming.'},
+ jog:{name:'Jog along the shore',pose:'jog',icon:'↗',minutes:30,energy:-12,hunger:-8,mood:22,minEnergy:12,types:['beach'],description:'A few easy steps with the sea beside you.'},
+ stretch:{name:'Stretch & breathe',pose:'stretch',icon:'✦',minutes:15,energy:5,hunger:-2,mood:12,types:['beach'],description:'A long breath and a little room to move.'},
+ walk:{name:'Take a seaside walk',pose:'walk',icon:'↝',minutes:60,energy:-5,hunger:-6,mood:26,legacy:true,types:['beach'],description:'Take the long way, just because.'},
+ meal:{name:'Sit down for a meal',pose:'eat',icon:'♨',minutes:30,energy:5,hunger:42,mood:8,legacy:true,types:['cafe','market'],description:'Find a seat and enjoy something good.'},
+ study:{name:'Build your skills',pose:'read',icon:'▤',minutes:120,energy:-15,hunger:-12,mood:6,minEnergy:15,legacy:true,types:['library'],description:'A quiet desk. One step closer to your goals.'},
+ 'market-work':{name:'Work at the market',pose:'market-work',icon:'▥',minutes:240,energy:-25,hunger:-22,mood:-5,minEnergy:25,minHunger:20,legacy:true,types:['market'],description:'Stock the stall, carry a crate, earn your keep.'},
+ 'cafe-work':{name:'Work a café shift',pose:'cafe-work',icon:'☕',minutes:240,energy:-25,hunger:-22,mood:-5,minEnergy:25,minHunger:20,legacy:true,types:['cafe'],description:'A few good coffees. A good day’s work.'}
+};
+function activitySceneType(place){return ['home','studio'].includes(place)?'home':place==='waterfront'?'beach':['cafe','market','library'].includes(place)?place:null;}
+function migrateActivities(){const prior=state.activityStats;state.activityStats={};for(const id of Object.keys(ACTIVITIES)){const count=Number(prior?.[id]);if(Number.isFinite(count)&&count>0)state.activityStats[id]=Math.min(1000000,Math.floor(count));}save();}
+function activityQuote(id,place=state.location){const spec=ACTIVITIES[id];if(!spec)return null;return {...spec,id,cost:id==='meal'?(place==='market'?120:180):spec.cost||0,pay:id==='market-work'?480+state.skill*100:id==='cafe-work'?650+state.skill*100:0};}
+function activityAvailable(id,place=state.location){const q=activityQuote(id,place);if(!q||!q.types.includes(activitySceneType(place)))return {ok:false,message:'Try that activity somewhere else in the city.'};if(place==='studio'&&state.home!=='studio')return {ok:false,message:'Rent the studio before making yourself at home.'};if(state.money<q.cost)return {ok:false,message:`You need ${cash(q.cost)} for this activity. Bread & tea at home is free.`};if(state.energy<(q.minEnergy||0))return {ok:false,message:`Rest first. This activity needs ${q.minEnergy} energy.`};if(state.hunger<(q.minHunger||0))return {ok:false,message:`Eat first. This activity needs ${q.minHunger} fullness.`};if(id==='study'&&state.skill>=5)return {ok:false,message:'You’ve reached skill level 5. Try reading for pleasure.'};return {ok:true,quote:q};}
+const activitySessions=new WeakSet();
+function beginActivity(id){if(travelling)return {ok:false,message:'Finish your journey first.'};const available=activityAvailable(id);if(!available.ok)return available;const session={id,place:state.location,status:'pending'};activitySessions.add(session);return {ok:true,session,quote:available.quote};}
+function cancelActivity(session){if(activitySessions.has(session)&&session.status==='pending')session.status='cancelled';}
+function finishActivity(session){if(!activitySessions.has(session)||session.status!=='pending')return {ok:false,message:'That activity has already ended.'};session.status='finished';if(session.place!==state.location||travelling)return {ok:false,message:'The activity ended when you left.'};const available=activityAvailable(session.id);if(!available.ok)return available;const q=available.quote;if(q.legacy)applyGameAction(session.id);else{state.money-=q.cost;advance(q.minutes,q.energy,q.hunger,q.mood);log(`${q.name} at ${PLACES.find(p=>p.id===state.location).name}.`);}state.activityStats[session.id]=(state.activityStats[session.id]||0)+1;save();render();return {ok:true,message:q.pay?`Shift complete. ${cash(q.pay)} earned.`:session.id==='fish'?'A silverfin took the bait! You released it back into the bay.':`${q.name} — a little time well spent.`,quote:q};}
+migrateActivities();

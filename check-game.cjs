@@ -1,0 +1,70 @@
+// Headless rule and rendering smoke checks. Run: node check-game.cjs
+const fs=require('node:fs');const vm=require('node:vm');const assert=require('node:assert/strict');
+const elements=new Map(),storage=new Map();
+const context2d=new Proxy({measureText:t=>({width:t.length*5}),createLinearGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});
+function element(key){if(!elements.has(key))elements.set(key,{style:{},dataset:{},classList:{add(){},remove(){}},textContent:'',innerHTML:'',value:'',querySelectorAll:()=>[],append(){},setAttribute(){},showModal(){this.open=true;},close(){this.open=false;},focus(){},scrollIntoView(){},addEventListener(){},getBoundingClientRect:()=>({width:760,height:490,left:0,top:0}),getContext:()=>context2d});return elements.get(key);}
+const frames=[];let reducedMotion=true;
+const sandbox={console,localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},document:{querySelector:element,querySelectorAll:()=>[],getElementById:k=>element('#'+k),createElement:()=>element(Symbol()),fonts:{ready:Promise.resolve()}},innerWidth:1366,devicePixelRatio:1,matchMedia:()=>({matches:reducedMotion}),setTimeout:()=>1,clearTimeout(){},requestAnimationFrame:cb=>frames.push(cb),performance:{now:()=>0},ResizeObserver:class{constructor(cb){this.cb=cb;}observe(){this.cb();}}};sandbox.window=sandbox;
+const c=vm.createContext(sandbox),run=s=>vm.runInContext(s,c);run(fs.readFileSync('dist/game.js','utf8'));run(fs.readFileSync('dist/vehicles.js','utf8'));run(fs.readFileSync('dist/life.js','utf8'));run(fs.readFileSync('dist/city.js','utf8'));
+assert.equal(run('state.money'),1800);assert.ok(storage.has('kora-bay-v1'));
+run("state.money=0; state.hunger=0; state.energy=0; runAction('snack'); runAction('sleep'); runAction('snack'); runAction('snack');");assert.ok(run('state.energy>=25 && state.hunger>=20'),'Free home actions recover an exhausted, broke player');
+run("state.location='market';selected='market';runAction('market-work')");assert.equal(run('state.money'),480,'Work earns money');assert.equal(run('state.shifts'),1);
+run("state.location='library';selected='library';state.energy=80;runAction('study');state.location='cafe';selected='cafe';state.hunger=80;state.energy=80;runAction('cafe-work')");assert.equal(run('state.money'),1230,'Studying increases shift pay');
+run("state.money=20;state.location='cafe';runAction('meal')");assert.equal(run('state.money'),20,'Unaffordable actions preserve balance');
+run("state.energy=0;runAction('cafe-work')");assert.equal(run('state.money'),20,'Exhaustion prevents shifts');
+run("state.money=5000;state.location='studio';selected='studio';runAction('move')");assert.equal(run('state.home'),'studio');assert.equal(run('state.money'),0);assert.equal(run('state.mood<=100'),true);
+run("state.day=7;state.minutes=1380;state.money=2000;advance(120,0,0,0)");assert.equal(run('state.day'),8);assert.equal(run('state.minutes'),60);assert.equal(run('state.money'),600,'Weekly studio rent deducted on day 8');
+run("state.day=14;state.minutes=1380;state.money=100;advance(120,0,0,0)");assert.equal(run('state.money'),0,'Rent cannot create a negative balance');
+run("state.skill=5;state.energy=80;runAction('study')");assert.equal(run('state.skill'),5,'Skill cap enforced');
+run("state.name='<img src=x onerror=alert(1)>';render()");assert.equal(element('#profileName').textContent,'<img src=x onerror=alert(1)>','Name rendered as text');
+(async()=>{
+ await run("travel('home')");assert.equal(run('state.location'),'home');assert.equal(run('travelling'),false);assert.equal(JSON.parse(storage.get('kora-bay-v1')).location,'home','Travel is saved');
+ run("state=INITIAL();selected='home';render();resetPlayer();");
+ assert.equal(run('state.activeTransport'),'walk');assert.equal(run("chooseTransport('car').ok"),false,'Unowned rides cannot be selected');
+ assert.equal(run("buyVehicle('bicycle').ok"),true);assert.equal(run('state.money'),900);assert.equal(run('state.activeTransport'),'bicycle');assert.equal(run("buyVehicle('bicycle').ok"),false,'Duplicate vehicles cannot be bought');assert.equal(run("buyVehicle('car').ok"),false,'Unaffordable vehicle is rejected');
+ const bikeTime=run('state.minutes'),bikeEnergy=run('state.energy');await run("travel('market')");assert.equal(run('state.minutes'),bikeTime+8);assert.equal(run('state.energy'),bikeEnergy-4,'Cycling uses its own time and energy rules');
+ run('state.money=20000');assert.equal(run("buyVehicle('motorbike').ok"),true);assert.equal(run("buyVehicle('car').ok"),true);const carTime=run('state.minutes'),carEnergy=run('state.energy');await run("travel('cafe')");assert.equal(run('state.minutes'),carTime+4);assert.equal(run('state.energy'),carEnergy,'Driving saves energy');assert.equal(run("state.vehicles.find(v=>v.id==='car').fuel"),94,'Driving consumes fuel');
+ run("state.vehicles.find(v=>v.id==='car').fuel=0");assert.equal(run("getTravelPlan('library').mode"),'walk','Empty tanks fall back to walking');const walkTime=run('state.minutes');await run("travel('library')");assert.equal(run('state.minutes'),walkTime+15);assert.equal(run("state.vehicles.find(v=>v.id==='car').fuel"),0);
+ const refuelCash=run('state.money');assert.equal(run("refuelVehicle('car').ok"),true);assert.equal(run('state.money'),refuelCash-75);assert.equal(run("state.vehicles.find(v=>v.id==='car').fuel"),25);run("state.vehicles.find(v=>v.id==='car').fuel=96");const partialCash=run('state.money');run("refuelVehicle('car')");assert.equal(run('state.money'),partialCash-12,'Partial top-up charges only the missing fuel');assert.equal(run("state.vehicles.find(v=>v.id==='car').fuel"),100);assert.equal(run("refuelVehicle('car').ok"),false,'Full tank cannot be charged again');
+ run("state.money=0;state.vehicles.find(v=>v.id==='motorbike').fuel=0");assert.equal(run("refuelVehicle('motorbike').ok"),false,'Unaffordable fuel is rejected');assert.equal(run("refuelVehicle('bicycle').ok"),false,'Bicycles never need fuel');
+ run('travelling=true');assert.equal(run("chooseTransport('walk').ok"),false);assert.equal(run("refuelVehicle('car').ok"),false);assert.equal(run("buyVehicle('bicycle').ok"),false);run('travelling=false');
+ assert.equal(JSON.parse(storage.get('kora-bay-v1')).vehicles.find(v=>v.id==='car').fuel,100,'Garage and fuel persist');
+ reducedMotion=false;run("chooseTransport('car')");const animatedTrip=run("travel('waterfront')");for(let i=1;i<=100;i++){const batch=frames.splice(0);batch.forEach(cb=>cb(i*80));await Promise.resolve();await Promise.resolve();}await animatedTrip;assert.equal(run('state.location'),'waterfront','Animated vehicle trip reaches the destination');assert.equal(run("state.vehicles.find(v=>v.id==='car').fuel"),94,'Animated trip charges fuel once');reducedMotion=true;
+ for(const from of ['home','market','cafe','library','waterfront','studio'])for(const to of ['home','market','cafe','library','waterfront','studio']){const route=run(`vehicleRoute('${from}','${to}')`);assert.ok(route.length>=2,'Every venue has a road route');for(const p of route){const x=Math.floor(p.x),y=Math.floor(p.y);assert.ok([4,9,14].includes(x)||[4,9,14].includes(y),'Vehicles stay on roads');}}
+ run('delete state.vehicles;delete state.activeTransport;migrateVehicles()');assert.equal(run('state.activeTransport'),'walk');assert.equal(run('state.vehicles.length'),0,'Old saves gain an empty garage');run("state.vehicles=[{id:'car',fuel:150},{id:'car',fuel:20},{id:'invalid',fuel:1}];state.activeTransport='invalid';migrateVehicles()");assert.equal(run('state.vehicles.length'),1);assert.equal(run('state.vehicles[0].fuel'),100);assert.equal(run('state.activeTransport'),'walk','Invalid garage data is sanitized');
+ run("state=INITIAL();selected='home';render();resetPlayer();");
+ assert.equal(run('state.furniture.length'),1,'New stories get a starter bed');
+ const purchase=run("buyFurniture('plant')");assert.equal(purchase.ok,true);assert.equal(run('state.money'),1650,'Furniture costs money');
+ c.testUid=purchase.uid;
+ assert.equal(run('placeFurniture(testUid,0,0,0).ok'),false,'Furniture cannot overlap the starter bed');
+ assert.equal(run('placeFurniture(testUid,5,4,0).ok'),false,'Doorway stays clear');
+ assert.equal(run('placeFurniture(testUid,-1,0,0).ok'),false,'Negative positions rejected');
+ assert.equal(run('placeFurniture(testUid,3,2,0).ok'),true,'Furniture placed on an empty square');
+ assert.equal(run('placeFurniture(testUid,4,2,0).ok'),true,'Owned furniture can be moved');
+ assert.equal(run('storeFurniture(testUid)'),true);assert.equal(run('state.furniture.find(i=>i.uid===testUid).x'),null,'Stored furniture stays owned');
+ run('state.money=0');assert.equal(run("buyFurniture('sofa').ok"),false);assert.equal(run('state.furniture.length'),2,'Unaffordable purchase creates no item');
+ run('state.money=3000');const sofa=run("buyFurniture('sofa')");c.sofaUid=sofa.uid;
+ assert.equal(run('placeFurniture(sofaUid,3,0,0).ok'),true);
+ assert.equal(run('placeFurniture(sofaUid,5,0,0).ok'),false,'Wide furniture respects room boundary');
+ assert.equal(run('placeFurniture(sofaUid,3,0,1).ok'),true,'Rotating swaps the item footprint');
+ run("state.money=5000;state.location='studio';runAction('move')");assert.equal(run('roomSize().cols'),8);assert.equal(run('state.furniture.length'),3,'Moving home preserves furniture');
+ assert.equal(run('placeFurniture(testUid,7,4,0).ok'),true,'Expanded studio can be furnished');
+ const savedFurniture=JSON.parse(storage.get('kora-bay-v1')).furniture;assert.equal(savedFurniture.find(i=>i.uid===purchase.uid).x,7,'Furniture placement persists');
+ await run('openApartment()');assert.ok(element('#dialogContent').innerHTML.includes('THE LITTLE HOME STORE'),'Apartment UI renders');
+ element('#dialog').close();
+ run('state.relationships={};state.friends=0;state.mood=40;state.minutes=600;');
+ const first=run("residentReply('ada','hello')");assert.equal(first.first,true);assert.equal(run('state.friends'),1);assert.equal(run("relationship('ada').bond"),10);assert.ok(first.text.includes('Ada'));
+ run("residentReply('ada','home')");assert.equal(run('state.friends'),1,'Repeat chats do not create duplicate friends');assert.equal(run("relationship('ada').bond"),10,'Repeat chats have a friendship cooldown');
+ run('advance(60,0,0,0)');run("residentReply('ada','city')");assert.equal(run("relationship('ada').bond"),20,'Later chats grow friendship');
+ run("relationship('ada').bond=30");assert.ok(run("residentReply('ada','hello').text").includes('There you are'),'Residents remember familiar players');
+ await run("meetResident('tobi')");assert.equal(run('activeConversation'),'tobi');assert.equal(run('travelling'),false);assert.ok(element('#dialogContent').innerHTML.includes('Talk about your home'),'Conversation choices render');
+ run('activeConversation=null');element('#dialog').close();
+ // Tick the real animation loop with controlled timestamps.
+ reducedMotion=false;run(fs.readFileSync('dist/city.js','utf8'));const before=run("residentPosition('nia')");
+ for(let i=1;i<=500;i++){const batch=frames.splice(0);batch.forEach(cb=>cb(i*80));}
+ const after=run("residentPosition('nia')");assert.ok(Math.hypot(after.x-before.x,after.y-before.y)>1,'Residents walk without player actions');
+ run("activeConversation='nia'");const paused=run("residentPosition('nia')");for(let i=501;i<=550;i++){const batch=frames.splice(0);batch.forEach(cb=>cb(i*80));}const still=run("residentPosition('nia')");assert.equal(still.x,paused.x);assert.equal(still.y,paused.y,'Resident stops to talk');
+ reducedMotion=true;run("activeConversation=null;state.money=1234;delete state.furniture;delete state.relationships;migrateLife()");assert.equal(run('state.money'),1234);assert.equal(run('state.furniture[0].type'),'bed','Old saves migrate without losing money');
+ run("state.furniture.push({uid:'broken',type:'sofa',x:100,y:100,rot:0});migrateLife()");assert.equal(run("state.furniture.find(i=>i.uid==='broken').x"),null,'Invalid furniture placements recover into storage');
+ console.log('Passed: game economy, cars/bikes buying and fuel, animated road travel and all venue routes, old-save migration, furniture and housing, NPC movement/conversation memory, saving and canvas rendering.');
+})().catch(e=>{console.error(e);process.exitCode=1;});
